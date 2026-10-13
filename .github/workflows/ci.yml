@@ -5,22 +5,8 @@ on:
   # each commit runs CI once.
   push:
     branches: [ main ]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
-      - ".github/dependabot.yml"
-      - ".github/copilot-instructions.md"
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
-      - ".github/dependabot.yml"
-      - ".github/copilot-instructions.md"
 
 # A newer commit on the same PR or branch cancels the run in progress.
 concurrency:
