@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  # Branches with a PR are covered by pull_request; push only checks main so
+  # each commit runs CI once.
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/dependabot.yml"
+      - ".github/copilot-instructions.md"
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/dependabot.yml"
+      - ".github/copilot-instructions.md"
+
+# A newer commit on the same PR or branch cancels the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Cache Go modules
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install modules
+        run: go mod download
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+
+      - name: Run tests (with coverage)
+        run: |
+          # Exclude vendor and tools packages from coverage calculation
+          PKGS=$(go list ./... | grep -v '/vendor/' | grep -v '/tools' | tr '\n' ' ')
+          echo "Running tests for packages: $PKGS"
+          if [ -z "$PKGS" ]; then
+            echo "No packages to test"
+            exit 1
+          fi
+          go test $PKGS -coverprofile=coverage.out -covermode=atomic -v
+
+      - name: Generate coverage summary
+        run: |
+          if [ -f coverage.out ]; then
+            go tool cover -func=coverage.out | tee coverage.txt
+            echo "Coverage summary written to coverage.txt"
+          else
+            echo "No coverage.out found"
+          fi
+
+      - name: Enforce coverage threshold
+        run: |
+          THRESHOLD=70
+          if [ ! -f coverage.out ]; then
+            echo "coverage.out not found, skipping threshold check"
+            exit 1
+          fi
+          PCT=$(go tool cover -func=coverage.out | grep total | awk '{print $NF}' | tr -d '%')
+          echo "Current coverage: ${PCT}% (threshold: ${THRESHOLD}%)"
+          awk -v p="${PCT}" -v t="${THRESHOLD}" 'BEGIN { if ((p+0) < (t+0)) { print "Coverage below threshold"; exit 1 } else { print "Coverage OK"; exit 0 } }'
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt

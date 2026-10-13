@@ -1,0 +1,17 @@
+version: "2"
+
+linters:
+  settings:
+    staticcheck:
+      # Defaults, minus the quick-fix style suggestions (QF1001/1003/1012).
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1001
+        - -QF1003
+        - -QF1012

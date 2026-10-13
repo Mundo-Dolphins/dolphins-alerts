@@ -1,0 +1,29 @@
+# Credenciales y estado local: nunca se versionan
+.env
+.env.*
+!.env.example
+cookies*.json
+*.pem
+
+# Estado generado en ejecución
+espn_cache.json
+injury_cache.json
+last_twitter_id.txt
+data/
+*.log
+
+# Artefactos
+build/
+dist/
+/alerts
+vendor/
+*.out
+*.test
+go.work
+go.work.sum
+
+# Sistema
+.DS_Store
+Thumbs.db
+*~
+*.swp

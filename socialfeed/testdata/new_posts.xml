@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>@exampleteam en Twitter/X</title>
+    <item><link>https://twitter.com/ExampleTeam/status/E</link><guid>E</guid><description>E</description></item>
+    <item><link>https://twitter.com/ExampleTeam/status/D</link><guid>D</guid><description>D</description></item>
+    <item><link>https://twitter.com/ExampleTeam/status/A</link><guid>A</guid><description>A</description></item>
+    <item><link>https://twitter.com/ExampleTeam/status/B</link><guid>B</guid><description>B</description></item>
+    <item><link>https://twitter.com/ExampleTeam/status/C</link><guid>C</guid><description>C</description></item>
+  </channel>
+</rss>

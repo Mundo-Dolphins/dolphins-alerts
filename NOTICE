@@ -1,0 +1,21 @@
+dolphins-alerts
+Copyright (c) 2026 Mundo Dolphins. Licensed under the MIT License (see LICENSE).
+
+Third-party data and services
+-----------------------------
+
+* injury/nflverse.go reads open data published by the nflverse project
+  (https://github.com/nflverse/nflverse-data), licensed under CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/). Messages built from that
+  data credit nflverse and link to the source file.
+* The ESPN client uses ESPN's public, undocumented JSON endpoints. They may
+  change or stop working at any time, and their use is subject to ESPN's terms.
+* The Telegram and Bluesky clients use the official APIs of those services.
+
+Trademarks
+----------
+
+NFL, ESPN, Miami Dolphins, X, Telegram and Bluesky are trademarks of their
+respective owners. This project is not affiliated with, endorsed by or
+sponsored by any of them; the names are used only to describe what the
+software works with.

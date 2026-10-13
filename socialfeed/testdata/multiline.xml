@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>@exampleteam en Twitter/X</title>
+    <item>
+      <title>South Florida</title>
+      <link>https://twitter.com/ExampleTeam/status/3001</link>
+      <guid isPermaLink="true">https://twitter.com/ExampleTeam/status/3001</guid>
+      <pubDate>Tue, 08 Sep 2026 15:00:00 GMT</pubDate>
+      <description>South Florida, it’s time.
+
+Week 1 is here 🐬</description>
+    </item>
+  </channel>
+</rss>

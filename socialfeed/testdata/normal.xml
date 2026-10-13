@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>@exampleteam en Twitter/X</title>
+    <link>https://twitter.com/exampleteam</link>
+    <lastBuildDate>Tue, 08 Sep 2026 14:20:34 GMT</lastBuildDate>
+    <item>
+      <title>First post</title>
+      <link>https://twitter.com/ExampleTeam/status/2097328956898693527</link>
+      <guid isPermaLink="true">https://twitter.com/ExampleTeam/status/2097328956898693527</guid>
+      <pubDate>Tue, 08 Sep 2026 14:19:24 GMT</pubDate>
+      <author>ExampleTeam@twitter.com (Example Team)</author>
+      <description>First &amp;amp; ready #PhinsUp https://t.co/ABC123</description>
+    </item>
+    <item>
+      <title>Second post</title>
+      <link>https://twitter.com/ExampleTeam/status/2097328956898693526</link>
+      <guid isPermaLink="true">https://twitter.com/ExampleTeam/status/2097328956898693526</guid>
+      <pubDate>Tue, 08 Sep 2026 14:18:24 GMT</pubDate>
+      <author>ExampleTeam@twitter.com (Example Team)</author>
+      <description>Hello @someplayer &amp; fans</description>
+    </item>
+  </channel>
+</rss>
