@@ -77,6 +77,15 @@ type Monitor struct {
 	pollIdle                      time.Duration
 	stopChan                      chan bool
 	now                           func() time.Time
+	// pending is a changed report that has been seen once and is waiting to be
+	// confirmed by a following check, or to be flushed when the window closes.
+	pending *pendingReport
+}
+
+type pendingReport struct {
+	report  Report
+	changes ReportChanges
+	eventID string
 }
 
 // NewMonitor builds a monitor that reads the report from nflverse's open data.
@@ -130,6 +139,9 @@ func (m *Monitor) Check(ctx context.Context, force bool, dryRun bool) (ReportCha
 		}
 		nextGame = game
 		if !inPublishWindow(now, game) {
+			if m.pending != nil {
+				return m.flushPending(ctx)
+			}
 			log.Printf("component=injury operation=check status=skipped reason=outside_publish_window")
 			return ReportChanges{}, nil
 		}
@@ -188,6 +200,8 @@ func (m *Monitor) Check(ctx context.Context, force bool, dryRun bool) (ReportCha
 	log.Printf("component=injury operation=diff players=%d changes=%d opponent=%q opponent_players=%d opponent_changes=%d",
 		len(report.Players), countChanges(changes), report.OpponentName, len(report.OpponentPlayers), oppChanges)
 	if changes.Empty() && !force {
+		// The page is back to what was already published.
+		m.pending = nil
 		return changes, nil
 	}
 
@@ -199,23 +213,41 @@ func (m *Monitor) Check(ctx context.Context, force bool, dryRun bool) (ReportCha
 		return changes, nil
 	}
 
-	telegramText := m.telegramRenderer.Render(report, changes)
+	// The club publishes the report in several steps (the opponent section
+	// often lands later), so only publish once the same report is seen in two
+	// consecutive checks. If the window closes first, flushPending publishes it.
+	if !force && !dryRun {
+		if m.pending == nil || m.pending.report.Fingerprint() != report.Fingerprint() {
+			m.pending = &pendingReport{report: report, changes: changes, eventID: eventID}
+			log.Printf("component=injury operation=publish status=deferred reason=waiting_for_stable_report event_id=%s", eventID)
+			return changes, nil
+		}
+	}
 	if dryRun {
 		return changes, nil
 	}
+	return changes, m.publish(ctx, report, changes, eventID)
+}
+
+// flushPending publishes the report deferred by the last in-window check.
+func (m *Monitor) flushPending(ctx context.Context) (ReportChanges, error) {
+	p := m.pending
+	log.Printf("component=injury operation=publish status=flushing reason=window_closed event_id=%s", p.eventID)
+	return p.changes, m.publish(ctx, p.report, p.changes, p.eventID)
+}
+
+func (m *Monitor) publish(ctx context.Context, report Report, changes ReportChanges, eventID string) error {
+	m.pending = nil
 	if m.telegramPub != nil {
 		log.Printf("component=injury operation=publish publisher=telegram event_id=%s", eventID)
-		if err := m.telegramPub.Publish(ctx, telegramText); err != nil {
-			return changes, err
+		if err := m.telegramPub.Publish(ctx, m.telegramRenderer.Render(report, changes)); err != nil {
+			return err
 		}
 	}
 	if err := m.store.MarkPublished(eventID, time.Now()); err != nil {
-		return changes, err
+		return err
 	}
-	if err := m.store.SaveReport(report); err != nil {
-		return changes, err
-	}
-	return changes, nil
+	return m.store.SaveReport(report)
 }
 
 func (m *Monitor) pollInterval(ctx context.Context) time.Duration {
@@ -224,7 +256,11 @@ func (m *Monitor) pollInterval(ctx context.Context) time.Duration {
 		return m.pollIdle
 	}
 	now := m.currentTime()
-	if inPublishWindow(now, game) {
+	if end, ok := publishWindowEnd(now, game); ok {
+		// Wake when the window closes so a pending report is not left unpublished.
+		if delay := end.Sub(now); m.pending != nil && delay < m.pollActive {
+			return delay
+		}
 		return m.pollActive
 	}
 	// Wake at 22:00 even if an idle poll would otherwise sleep past it.

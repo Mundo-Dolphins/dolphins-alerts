@@ -174,9 +174,9 @@ func TestMonitorSkipsFallbackDataOlderThanSnapshot(t *testing.T) {
 	monitor.AllowNotifyOutsidePublishDays = true
 	monitor.SetStore(NewJSONReportStore(t.TempDir() + "/injury.json"))
 	monitor.SetPublisher(pub)
-	monitor.SetProvider(&sequenceProvider{reports: []Report{primary, stale, fresh}})
+	monitor.SetProvider(&sequenceProvider{reports: []Report{primary, primary, stale, fresh, fresh}})
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		if _, err := monitor.Check(context.Background(), false, false); err != nil {
 			t.Fatalf("check %d: %v", i, err)
 		}

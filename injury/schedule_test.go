@@ -90,7 +90,15 @@ func TestMonitorScheduleGate(t *testing.T) {
 			publisher := &capturePublisher{}
 			m.SetProvider(provider)
 			m.SetPublisher(publisher)
-			_, err := m.Check(context.Background(), tc.force, tc.dryRun)
+			// A changed report is only published once it repeats in a second check.
+			var err error
+			checks := 2
+			if tc.force {
+				checks = 1
+			}
+			for i := 0; i < checks; i++ {
+				_, err = m.Check(context.Background(), tc.force, tc.dryRun)
+			}
 			if (err != nil) != (tc.scheduleErr != nil) {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -188,8 +196,11 @@ func TestFridayReportIsNotRepeatedAfterMidnightOrRestart(t *testing.T) {
 		m.SetProvider(&sequenceProvider{reports: []Report{testReport("Friday report", PracticeDNP)}})
 		publisher := &capturePublisher{}
 		m.SetPublisher(publisher)
-		if _, err := m.Check(context.Background(), false, false); err != nil {
-			t.Fatal(err)
+		// Two checks per run: a changed report must be seen twice to publish.
+		for j := 0; j < 2; j++ {
+			if _, err := m.Check(context.Background(), false, false); err != nil {
+				t.Fatal(err)
+			}
 		}
 		want := 1 - i
 		if len(publisher.texts) != want {
@@ -230,5 +241,84 @@ func TestMonitorUsesGameWeekAndRejectsOldOpponent(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("stale opponent modified state")
+	}
+}
+
+func newPendingWindowMonitor(t *testing.T, now *string) (*Monitor, *capturePublisher, *sequenceProvider) {
+	t.Helper()
+	m := NewMonitor(t.TempDir()+"/injury.json", "", "")
+	m.now = func() time.Time { return scheduleTime(t, *now) }
+	m.schedule = fixedSchedule{game: Game{Start: scheduleTime(t, "2026-10-11T20:25:00Z")}}
+	provider := &sequenceProvider{reports: []Report{testReport("Friday report", PracticeDNP)}}
+	publisher := &capturePublisher{}
+	m.SetProvider(provider)
+	m.SetPublisher(publisher)
+	return m, publisher, provider
+}
+
+func TestPendingReportIsPublishedWhenWindowCloses(t *testing.T) {
+	now := "2026-10-10T01:45:00+02:00"
+	m, publisher, provider := newPendingWindowMonitor(t, &now)
+	if _, err := m.Check(context.Background(), false, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.texts) != 0 {
+		t.Fatalf("first sighting must be deferred, got %d publications", len(publisher.texts))
+	}
+
+	now = "2026-10-10T02:00:00+02:00"
+	fetches := provider.index
+	if _, err := m.Check(context.Background(), false, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.texts) != 1 {
+		t.Fatalf("pending report must be published when the window closes, got %d", len(publisher.texts))
+	}
+	if provider.index != fetches {
+		t.Fatal("flushing the pending report must not fetch the page again")
+	}
+
+	now = "2026-10-10T02:15:00+02:00"
+	if _, err := m.Check(context.Background(), false, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.texts) != 1 {
+		t.Fatalf("pending report must be published only once, got %d", len(publisher.texts))
+	}
+}
+
+func TestPollIntervalWakesAtWindowCloseWhenReportIsPending(t *testing.T) {
+	now := "2026-10-10T01:45:00+02:00"
+	m, _, _ := newPendingWindowMonitor(t, &now)
+	if got := m.pollInterval(context.Background()); got != 15*time.Minute {
+		t.Fatalf("no pending report: expected the active interval, got %s", got)
+	}
+	if _, err := m.Check(context.Background(), false, false); err != nil {
+		t.Fatal(err)
+	}
+	now = "2026-10-10T01:50:00+02:00"
+	if got := m.pollInterval(context.Background()); got != 10*time.Minute {
+		t.Fatalf("expected to wake exactly when the window closes, got %s", got)
+	}
+}
+
+func TestPendingReportIsDroppedWhenPageRevertsToPublishedState(t *testing.T) {
+	now := "2026-10-10T00:30:00+02:00"
+	m, publisher, provider := newPendingWindowMonitor(t, &now)
+	provider.reports = []Report{testReport("Friday report", PracticeDNP), testReport("Friday report", PracticeDNP), testReport("Friday report", PracticeLP), testReport("Friday report", PracticeDNP)}
+	for i := 0; i < 4; i++ {
+		if _, err := m.Check(context.Background(), false, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(publisher.texts) != 1 {
+		t.Fatalf("expected the DNP report only, got %d", len(publisher.texts))
+	}
+	now = "2026-10-10T02:00:00+02:00"
+	if _, err := m.Check(context.Background(), false, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.texts) != 1 {
+		t.Fatalf("a transient LP report must not be flushed after the page reverted, got %d", len(publisher.texts))
 	}
 }
