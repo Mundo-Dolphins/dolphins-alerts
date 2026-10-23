@@ -126,3 +126,47 @@ func testPlayer(name string, injury string, practice PracticeStatus, game GameSt
 		GameStatus: game,
 	}
 }
+
+func TestMonitorWaitsForReportToStabilizeBeforePublishing(t *testing.T) {
+	pub := &capturePublisher{}
+	monitor := NewMonitor(t.TempDir()+"/unused.json", "", "")
+	monitor.AllowNotifyOutsidePublishDays = true
+	monitor.SetStore(NewJSONReportStore(t.TempDir() + "/injury.json"))
+	monitor.SetPublisher(pub)
+	// The page is updated in several steps: DNP -> LP -> FP, and only the
+	// last one stays unchanged across two consecutive checks.
+	monitor.SetProvider(&sequenceProvider{reports: []Report{
+		testReport("A", PracticeDNP),
+		testReport("A", PracticeLP),
+		testReport("A", PracticeFP),
+		testReport("A", PracticeFP),
+		testReport("A", PracticeFP),
+	}})
+	for i := 0; i < 5; i++ {
+		if _, err := monitor.Check(context.Background(), false, false); err != nil {
+			t.Fatalf("check %d: %v", i, err)
+		}
+		wantPublished := 0
+		if i >= 3 {
+			wantPublished = 1
+		}
+		if len(pub.texts) != wantPublished {
+			t.Fatalf("after check %d expected %d publications, got %d", i, wantPublished, len(pub.texts))
+		}
+	}
+}
+
+func TestMonitorForceDoesNotWaitForStability(t *testing.T) {
+	pub := &capturePublisher{}
+	monitor := NewMonitor(t.TempDir()+"/unused.json", "", "")
+	monitor.AllowNotifyOutsidePublishDays = true
+	monitor.SetStore(NewJSONReportStore(t.TempDir() + "/injury.json"))
+	monitor.SetPublisher(pub)
+	monitor.SetProvider(&sequenceProvider{reports: []Report{testReport("A", PracticeDNP)}})
+	if _, err := monitor.Check(context.Background(), true, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.texts) != 1 {
+		t.Fatalf("forced check should publish immediately, got %d", len(pub.texts))
+	}
+}

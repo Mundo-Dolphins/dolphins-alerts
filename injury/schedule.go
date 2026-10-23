@@ -87,14 +87,21 @@ func publishWindowStarts(game Game) []time.Time {
 }
 
 func inPublishWindow(now time.Time, game Game) bool {
+	_, ok := publishWindowEnd(now, game)
+	return ok
+}
+
+// publishWindowEnd returns when the publish window containing now closes, and
+// false when now is outside every window.
+func publishWindowEnd(now time.Time, game Game) (time.Time, bool) {
 	if !now.Before(game.Start) {
-		return false
+		return time.Time{}, false
 	}
 	for _, start := range publishWindowStarts(game) {
 		end := time.Date(start.Year(), start.Month(), start.Day()+1, 2, 0, 0, 0, start.Location())
 		if !now.Before(start) && now.Before(end) {
-			return true
+			return end, true
 		}
 	}
-	return false
+	return time.Time{}, false
 }
