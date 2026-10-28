@@ -24,6 +24,12 @@ var (
 	ErrInvalidPubDate   = errors.New("invalid rss pubDate")
 )
 
+// Enclosure is a media attachment (<enclosure url= type=>) of a feed item.
+type Enclosure struct {
+	URL  string
+	Type string
+}
+
 type Item struct {
 	GUID        string
 	Title       string
@@ -33,6 +39,7 @@ type Item struct {
 	DateRaw     string
 	PubDate     string
 	PublishedAt time.Time
+	Enclosures  []Enclosure
 }
 
 type Feed struct {
@@ -107,6 +114,10 @@ type rssItem struct {
 	PubDate     string `xml:"pubDate"`
 	GUID        string `xml:"guid"`
 	Author      string `xml:"author"`
+	Enclosures  []struct {
+		URL  string `xml:"url,attr"`
+		Type string `xml:"type,attr"`
+	} `xml:"enclosure"`
 }
 
 type atomEntry struct {
@@ -142,6 +153,12 @@ func (d rssDocument) rssFeed() (Feed, error) {
 		if err != nil {
 			return Feed{}, err
 		}
+		var enclosures []Enclosure
+		for _, e := range raw.Enclosures {
+			if url := strings.TrimSpace(e.URL); url != "" {
+				enclosures = append(enclosures, Enclosure{URL: url, Type: strings.TrimSpace(e.Type)})
+			}
+		}
 		items = append(items, Item{
 			GUID:        strings.TrimSpace(raw.GUID),
 			Title:       strings.TrimSpace(raw.Title),
@@ -151,6 +168,7 @@ func (d rssDocument) rssFeed() (Feed, error) {
 			DateRaw:     strings.TrimSpace(raw.PubDate),
 			PubDate:     strings.TrimSpace(raw.PubDate),
 			PublishedAt: publishedAt,
+			Enclosures:  enclosures,
 		})
 	}
 	return Feed{Title: strings.TrimSpace(d.Channel.Title), Items: items}, nil

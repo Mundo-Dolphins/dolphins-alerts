@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>@MundoDolphins en Twitter/X</title>
+    <item>
+      <title>Link and image</title>
+      <link>https://twitter.com/MundoDolphins/status/2113300152848924755</link>
+      <guid isPermaLink="true">https://twitter.com/MundoDolphins/status/2113300152848924755</guid>
+      <pubDate>Thu, 22 Oct 2026 16:03:14 GMT</pubDate>
+      <author>MundoDolphins@twitter.com (Mundo Dolphins)</author>
+      <description>🆕 Episodio
+Enlace ⤵️
+https://mundodolphins.es/podcast/previa-jets/</description>
+      <enclosure url="https://pbs.twimg.com/media/AAA.jpg" type="image/jpeg" length="0"/>
+      <enclosure url="https://pbs.twimg.com/media/BBB.png" type="image/png" length="0"/>
+      <enclosure url="https://video.twimg.com/ext_tw_video/1.mp4" type="video/mp4" length="0"/>
+    </item>
+    <item>
+      <title>Legacy t.co</title>
+      <link>https://twitter.com/MundoDolphins/status/2111747695773732885</link>
+      <guid isPermaLink="true">https://twitter.com/MundoDolphins/status/2111747695773732885</guid>
+      <pubDate>Sun, 18 Oct 2026 09:14:19 GMT</pubDate>
+      <description>Escúchalo aquí ⤵️
+
+https://t.co/lwsFePfr62</description>
+    </item>
+  </channel>
+</rss>

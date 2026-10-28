@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -32,6 +33,9 @@ var mediaClient = &http.Client{Timeout: 30 * time.Second}
 // maxImageBytes bounds an attachment (Bluesky itself rejects images over ~1 MB).
 const maxImageBytes = 2 << 20
 
+// maxImages is the number of images Bluesky allows in a single post.
+const maxImages = 4
+
 // injection points for testing
 var (
 	httpGet             = mediaClient.Get
@@ -40,7 +44,38 @@ var (
 	repoCreateRecord    = atproto.RepoCreateRecord
 )
 
-// truncateText recorta el texto a un máximo de graphemes especificado
+var urlPattern = regexp.MustCompile(`https?://[^\s]+`)
+
+// urlSpans returns the byte ranges of the URLs in text, without the
+// punctuation that usually trails a link in prose.
+func urlSpans(text string) [][2]int {
+	var spans [][2]int
+	for _, m := range urlPattern.FindAllStringIndex(text, -1) {
+		end := m[0] + len(strings.TrimRight(text[m[0]:m[1]], `.,;:!?)]}'"…`))
+		if end > m[0] {
+			spans = append(spans, [2]int{m[0], end})
+		}
+	}
+	return spans
+}
+
+// linkFacets marks every URL in text as a clickable link; without facets
+// Bluesky renders URLs as plain text.
+func linkFacets(text string) []*appbsky.RichtextFacet {
+	var facets []*appbsky.RichtextFacet
+	for _, span := range urlSpans(text) {
+		facets = append(facets, &appbsky.RichtextFacet{
+			Index: &appbsky.RichtextFacet_ByteSlice{ByteStart: int64(span[0]), ByteEnd: int64(span[1])},
+			Features: []*appbsky.RichtextFacet_Features_Elem{
+				{RichtextFacet_Link: &appbsky.RichtextFacet_Link{Uri: text[span[0]:span[1]]}},
+			},
+		})
+	}
+	return facets
+}
+
+// truncateText recorta el texto a un máximo de graphemes especificado. Nunca
+// corta una URL por la mitad: si el recorte cae dentro de una, se descarta entera.
 func truncateText(text string, maxGraphemes int) string {
 	if uniseg.GraphemeClusterCount(text) <= maxGraphemes {
 		return text
@@ -52,14 +87,20 @@ func truncateText(text string, maxGraphemes int) string {
 
 	for gr.Next() {
 		if count >= maxGraphemes-2 { // Reservar espacio para "..."
-			result.WriteString("...")
 			break
 		}
 		result.Write(gr.Bytes())
 		count++
 	}
 
-	return result.String()
+	cut := result.Len()
+	for _, span := range urlSpans(text) {
+		if span[0] < cut && cut < span[1] {
+			cut = span[0]
+			break
+		}
+	}
+	return strings.TrimRight(text[:cut], " \n") + "..."
 }
 
 func getTweetHash(text string, images, videos []string) string {
@@ -128,6 +169,9 @@ func PostToBluesky(ctx context.Context, text string, images, videos []string) er
 
 	// Descargar y subir blobs
 	var blobRefs []*appbsky.EmbedImages_Image
+	if len(images) > maxImages {
+		images = images[:maxImages]
+	}
 	for _, imgURL := range images {
 		log.Printf("Downloading image: %s", imgURL)
 		resp, err := httpGet(imgURL)
@@ -169,6 +213,7 @@ func PostToBluesky(ctx context.Context, text string, images, videos []string) er
 	}
 	record := &appbsky.FeedPost{
 		Text:      fullText,
+		Facets:    linkFacets(fullText),
 		CreatedAt: now,
 		Embed:     embed,
 	}

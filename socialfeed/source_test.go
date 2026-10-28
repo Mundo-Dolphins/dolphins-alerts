@@ -31,7 +31,7 @@ func TestSourceFetchNormal(t *testing.T) {
 	if posts[0].ID != "2097328956898693527" {
 		t.Fatalf("expected extracted status ID, got %q", posts[0].ID)
 	}
-	if posts[0].Text != "First & ready #PhinsUp" {
+	if posts[0].Text != "First & ready #PhinsUp https://t.co/ABC123" {
 		t.Fatalf("unexpected cleaned text: %q", posts[0].Text)
 	}
 	if posts[1].Text != "Hello @someplayer & fans" {
@@ -65,7 +65,7 @@ func TestSourceFetchMultilineAndEmoji(t *testing.T) {
 	}
 }
 
-func TestSourceFetchSoloEmojiURLKeepsEmojiRemovesTCO(t *testing.T) {
+func TestSourceFetchSoloEmojiURLKeepsEmojiAndURL(t *testing.T) {
 	source, _ := sourceFromFixture(t, "solo_emoji_url.xml")
 
 	posts, err := source.Fetch(context.Background(), "exampleteam")
@@ -73,8 +73,29 @@ func TestSourceFetchSoloEmojiURLKeepsEmojiRemovesTCO(t *testing.T) {
 		t.Fatalf("Fetch returned error: %v", err)
 	}
 
-	if posts[0].Text != "🙂‍↕️" {
-		t.Fatalf("expected only emoji after t.co cleanup, got %q", posts[0].Text)
+	if posts[0].Text != "🙂‍↕️ https://t.co/ONLYURL" {
+		t.Fatalf("expected emoji and URL to be preserved, got %q", posts[0].Text)
+	}
+}
+
+func TestSourceFetchKeepsLinksAndImages(t *testing.T) {
+	source, _ := sourceFromFixture(t, "links_media.xml")
+
+	posts, err := source.Fetch(context.Background(), "mundodolphins")
+	if err != nil {
+		t.Fatalf("Fetch returned error: %v", err)
+	}
+
+	want := "🆕 Episodio\nEnlace ⤵️\nhttps://mundodolphins.es/podcast/previa-jets/"
+	if posts[0].Text != want {
+		t.Fatalf("text = %q, want %q", posts[0].Text, want)
+	}
+	wantImages := []string{"https://pbs.twimg.com/media/AAA.jpg", "https://pbs.twimg.com/media/BBB.png"}
+	if !reflect.DeepEqual(posts[0].Images, wantImages) {
+		t.Fatalf("images = %v, want %v (video enclosures must be ignored)", posts[0].Images, wantImages)
+	}
+	if len(posts[1].Images) != 0 {
+		t.Fatalf("expected no images, got %v", posts[1].Images)
 	}
 }
 

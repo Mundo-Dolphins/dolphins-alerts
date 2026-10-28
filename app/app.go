@@ -99,7 +99,7 @@ func (a *App) checkTwitter(ctx context.Context, source *socialfeed.Source, seen 
 	stateChanged := false
 	for _, post := range newPosts {
 		log.Printf("component=socialfeed operation=publish id=%s", post.ID)
-		if err := bluesky.PostToBluesky(ctx, post.Text, nil, nil); err != nil {
+		if err := bluesky.PostToBluesky(ctx, post.Text, post.Images, nil); err != nil {
 			log.Printf("component=socialfeed operation=publish id=%s error=%v", post.ID, err)
 			continue
 		}
