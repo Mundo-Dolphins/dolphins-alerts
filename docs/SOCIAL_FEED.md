@@ -22,7 +22,14 @@ si ambos están definidos, ganan los nuevos.
 
 ## Qué hace
 
-- Limpia etiquetas HTML, decodifica entidades (incluido `&amp;amp;`) y elimina URLs cortas `t.co`.
+- Limpia etiquetas HTML y decodifica entidades (incluido `&amp;amp;`). Las URLs se **conservan**.
+- Las URLs del texto se publican como enlaces pulsables (*facets* de Bluesky). Si un recorte por longitud
+  caería dentro de una URL, se descarta la URL entera en vez de dejarla rota.
+- Las imágenes se toman de los `<enclosure type="image/*">` del item (máximo 4, límite de Bluesky). Los
+  vídeos no se copian.
+- Para que el feed traiga URLs reales (no `t.co`) e imágenes, el generador debe expandir los enlaces y emitir
+  los `<enclosure>`; `twikit-rss` (`rss_builder.py`) lo hace. Con un feed antiguo, las `t.co` se publican tal
+  cual (siguen funcionando como enlace) y no hay imágenes.
 - Guarda los IDs vistos en `last_twitter_id.txt` (permisos `0600`) para no republicar.
 - Distingue errores de servicio, HTTP, XML inválido, fecha inválida, item inválido y feed vacío.
 

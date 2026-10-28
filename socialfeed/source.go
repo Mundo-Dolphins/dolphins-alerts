@@ -29,6 +29,7 @@ type SocialPost struct {
 	Author      string
 	Text        string
 	URL         string
+	Images      []string
 	PublishedAt time.Time
 }
 
@@ -124,8 +125,20 @@ func itemToPost(account string, item rss.Item) (SocialPost, error) {
 		Author:      strings.TrimSpace(item.Author),
 		Text:        text,
 		URL:         postURL,
+		Images:      imageURLs(item.Enclosures),
 		PublishedAt: item.PublishedAt,
 	}, nil
+}
+
+// imageURLs keeps the image attachments; other media (video) cannot be mirrored.
+func imageURLs(enclosures []rss.Enclosure) []string {
+	var images []string
+	for _, e := range enclosures {
+		if strings.HasPrefix(strings.ToLower(e.Type), "image/") {
+			images = append(images, e.URL)
+		}
+	}
+	return images
 }
 
 var statusIDPattern = regexp.MustCompile(`/status/([0-9]+)`)
@@ -142,7 +155,6 @@ func CleanTwitterText(text string) string {
 	decoded := html.UnescapeString(text)
 	decoded = html.UnescapeString(decoded)
 	decoded = stripHTMLTags(decoded)
-	decoded = removeTCOURLs(decoded)
 	return normalizeWhitespace(decoded)
 }
 
@@ -162,12 +174,6 @@ func stripHTMLTags(text string) string {
 		}
 	}
 	return b.String()
-}
-
-var tcoURLPattern = regexp.MustCompile(`https?://t\.co/\S+`)
-
-func removeTCOURLs(text string) string {
-	return tcoURLPattern.ReplaceAllString(text, "")
 }
 
 func normalizeWhitespace(text string) string {
