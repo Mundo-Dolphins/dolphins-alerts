@@ -30,6 +30,7 @@ type SocialPost struct {
 	Text        string
 	URL         string
 	Images      []string
+	Videos      []string
 	PublishedAt time.Time
 }
 
@@ -125,20 +126,21 @@ func itemToPost(account string, item rss.Item) (SocialPost, error) {
 		Author:      strings.TrimSpace(item.Author),
 		Text:        text,
 		URL:         postURL,
-		Images:      imageURLs(item.Enclosures),
+		Images:      enclosureURLs(item.Enclosures, "image/"),
+		Videos:      enclosureURLs(item.Enclosures, "video/"),
 		PublishedAt: item.PublishedAt,
 	}, nil
 }
 
-// imageURLs keeps the image attachments; other media (video) cannot be mirrored.
-func imageURLs(enclosures []rss.Enclosure) []string {
-	var images []string
+// enclosureURLs returns the attachments whose MIME type starts with prefix.
+func enclosureURLs(enclosures []rss.Enclosure, prefix string) []string {
+	var urls []string
 	for _, e := range enclosures {
-		if strings.HasPrefix(strings.ToLower(e.Type), "image/") {
-			images = append(images, e.URL)
+		if strings.HasPrefix(strings.ToLower(e.Type), prefix) {
+			urls = append(urls, e.URL)
 		}
 	}
-	return images
+	return urls
 }
 
 var statusIDPattern = regexp.MustCompile(`/status/([0-9]+)`)

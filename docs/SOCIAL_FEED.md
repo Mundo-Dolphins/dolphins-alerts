@@ -25,8 +25,14 @@ si ambos están definidos, ganan los nuevos.
 - Limpia etiquetas HTML y decodifica entidades (incluido `&amp;amp;`). Las URLs se **conservan**.
 - Las URLs del texto se publican como enlaces pulsables (*facets* de Bluesky). Si un recorte por longitud
   caería dentro de una URL, se descarta la URL entera en vez de dejarla rota.
-- Las imágenes se toman de los `<enclosure type="image/*">` del item (máximo 4, límite de Bluesky). Los
-  vídeos no se copian.
+- Las imágenes se toman de los `<enclosure type="image/*">` del item (máximo 4, límite de Bluesky). Si una
+  pesa más de ~1 MB (límite de blob de Bluesky) se recomprime como JPEG, bajando calidad y resolución hasta
+  que cabe; las que no se pueden decodificar se omiten.
+- Los vídeos (y GIFs, que X sirve como mp4) se toman de `<enclosure type="video/mp4">`. Se descargan a un
+  fichero temporal (máx. 100 MB) y se suben al servicio de vídeo de Bluesky (`video.bsky.app`), que los
+  procesa por su cuenta; el bot espera al trabajo (máx. 5 min). Un post solo admite un vídeo y no se puede
+  combinar con imágenes. Si el vídeo falla (duración > 3 min, cuota diaria, cuenta sin email verificado...),
+  el post se publica igualmente con sus imágenes o solo texto.
 - Para que el feed traiga URLs reales (no `t.co`) e imágenes, el generador debe expandir los enlaces y emitir
   los `<enclosure>`; `twikit-rss` (`rss_builder.py`) lo hace. Con un feed antiguo, las `t.co` se publican tal
   cual (siguen funcionando como enlace) y no hay imágenes.

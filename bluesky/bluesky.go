@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -29,9 +28,6 @@ var (
 // mediaClient downloads post attachments; it has a timeout so a stalled host
 // cannot block publishing forever.
 var mediaClient = &http.Client{Timeout: 30 * time.Second}
-
-// maxImageBytes bounds an attachment (Bluesky itself rejects images over ~1 MB).
-const maxImageBytes = 2 << 20
 
 // maxImages is the number of images Bluesky allows in a single post.
 const maxImages = 4
@@ -167,48 +163,33 @@ func PostToBluesky(ctx context.Context, text string, images, videos []string) er
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	// Descargar y subir blobs
-	var blobRefs []*appbsky.EmbedImages_Image
-	if len(images) > maxImages {
-		images = images[:maxImages]
-	}
-	for _, imgURL := range images {
-		log.Printf("Downloading image: %s", imgURL)
-		resp, err := httpGet(imgURL)
-		if err != nil {
-			log.Printf("Error downloading image: %s", imgURL)
-			continue
-		}
-		mimeType := resp.Header.Get("Content-Type")
-		log.Printf("Detected MIME type: %s", mimeType)
-		// Bluesky rejects the whole post if an embedded blob is not an image.
-		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(mimeType, "image/") {
-			_ = resp.Body.Close()
-			log.Printf("Skipping image %s: status=%d MIME=%s", imgURL, resp.StatusCode, mimeType)
-			continue
-		}
-		blobResp, err := repoUploadBlob(ctx, client, io.LimitReader(resp.Body, maxImageBytes))
-		_ = resp.Body.Close()
-		if err != nil {
-			log.Printf("Error uploading blob: %s | MIME: %s | Error: %v", imgURL, mimeType, err)
-			continue
-		}
-		log.Printf("Blob uploaded successfully: Ref=%s, MIME=%s", blobResp.Blob.Ref, mimeType)
-		blobRefs = append(blobRefs, &appbsky.EmbedImages_Image{
-			Image: blobResp.Blob,
-			Alt:   "Attached image",
-		})
-	}
-	// Bluesky posts only embed images, so videos are ignored: they are not
-	// downloaded.
-	_ = videos
-
 	var embed *appbsky.FeedPost_Embed
-	if len(blobRefs) > 0 {
-		embed = &appbsky.FeedPost_Embed{
-			EmbedImages: &appbsky.EmbedImages{
-				Images: blobRefs,
-			},
+	// Bluesky allows a single video per post and it cannot be combined with
+	// images. If the video cannot be mirrored, fall back to the images.
+	if len(videos) > 0 {
+		log.Printf("Uploading video: %s", videos[0])
+		if blob, err := uploadVideo(ctx, client, sess.Did, videos[0]); err != nil {
+			log.Printf("Skipping video %s: %v", videos[0], err)
+		} else {
+			alt := "Attached video"
+			embed = &appbsky.FeedPost_Embed{EmbedVideo: &appbsky.EmbedVideo{Video: blob, Alt: &alt}}
+		}
+	}
+	if embed == nil {
+		if len(images) > maxImages {
+			images = images[:maxImages]
+		}
+		var blobRefs []*appbsky.EmbedImages_Image
+		for _, imgURL := range images {
+			blob, err := uploadImage(ctx, client, imgURL)
+			if err != nil {
+				log.Printf("Skipping image %s: %v", imgURL, err)
+				continue
+			}
+			blobRefs = append(blobRefs, &appbsky.EmbedImages_Image{Image: blob, Alt: "Attached image"})
+		}
+		if len(blobRefs) > 0 {
+			embed = &appbsky.FeedPost_Embed{EmbedImages: &appbsky.EmbedImages{Images: blobRefs}}
 		}
 	}
 	record := &appbsky.FeedPost{

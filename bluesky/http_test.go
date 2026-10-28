@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -87,55 +86,5 @@ func TestPostToBluesky_DownloadAndUploadMocks(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	if err := PostToBluesky(context.Background(), "Hello world", []string{"http://example/image.png"}, nil); err != nil {
 		t.Fatalf("second PostToBluesky should not fail: %v", err)
-	}
-}
-
-func TestPostToBluesky_DoesNotDownloadVideosAndLimitsImages(t *testing.T) {
-	tmp := t.TempDir() + "/hashes.txt"
-	oldPosted := postedHashesFile
-	postedHashesFile = tmp
-	defer func() { postedHashesFile = oldPosted }()
-
-	oldSession := serverCreateSession
-	serverCreateSession = func(context.Context, util.LexClient, *atproto.ServerCreateSession_Input) (*atproto.ServerCreateSession_Output, error) {
-		return &atproto.ServerCreateSession_Output{AccessJwt: "a", RefreshJwt: "r", Handle: "h", Did: "did:example:1"}, nil
-	}
-	defer func() { serverCreateSession = oldSession }()
-
-	oldCreate := repoCreateRecord
-	repoCreateRecord = func(context.Context, util.LexClient, *atproto.RepoCreateRecord_Input) (*atproto.RepoCreateRecord_Output, error) {
-		return &atproto.RepoCreateRecord_Output{}, nil
-	}
-	defer func() { repoCreateRecord = oldCreate }()
-
-	// An image larger than maxImageBytes must be truncated, not forwarded whole.
-	oldGet := httpGet
-	httpGet = func(string) (*http.Response, error) {
-		body := io.NopCloser(bytes.NewReader(make([]byte, maxImageBytes+1024)))
-		return &http.Response{StatusCode: 200, Body: body, Header: http.Header{"Content-Type": []string{"image/png"}}}, nil
-	}
-	defer func() { httpGet = oldGet }()
-	var uploaded int
-	oldUpload := repoUploadBlob
-	repoUploadBlob = func(_ context.Context, _ util.LexClient, input io.Reader) (*atproto.RepoUploadBlob_Output, error) {
-		b, _ := io.ReadAll(input)
-		uploaded = len(b)
-		return &atproto.RepoUploadBlob_Output{Blob: &util.LexBlob{MimeType: "image/png", Size: int64(len(b))}}, nil
-	}
-	defer func() { repoUploadBlob = oldUpload }()
-
-	// A video URL must never be requested.
-	videoHits := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { videoHits++ }))
-	defer ts.Close()
-
-	if err := PostToBluesky(context.Background(), "big image", []string{"http://example/big.png"}, []string{ts.URL + "/video.mp4"}); err != nil {
-		t.Fatal(err)
-	}
-	if uploaded != maxImageBytes {
-		t.Fatalf("uploaded %d bytes, want it capped at %d", uploaded, maxImageBytes)
-	}
-	if videoHits != 0 {
-		t.Fatalf("video URL was requested %d times", videoHits)
 	}
 }

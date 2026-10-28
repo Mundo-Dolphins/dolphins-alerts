@@ -92,7 +92,11 @@ func TestSourceFetchKeepsLinksAndImages(t *testing.T) {
 	}
 	wantImages := []string{"https://pbs.twimg.com/media/AAA.jpg", "https://pbs.twimg.com/media/BBB.png"}
 	if !reflect.DeepEqual(posts[0].Images, wantImages) {
-		t.Fatalf("images = %v, want %v (video enclosures must be ignored)", posts[0].Images, wantImages)
+		t.Fatalf("images = %v, want %v", posts[0].Images, wantImages)
+	}
+	wantVideos := []string{"https://video.twimg.com/ext_tw_video/1.mp4"}
+	if !reflect.DeepEqual(posts[0].Videos, wantVideos) {
+		t.Fatalf("videos = %v, want %v", posts[0].Videos, wantVideos)
 	}
 	if len(posts[1].Images) != 0 {
 		t.Fatalf("expected no images, got %v", posts[1].Images)
