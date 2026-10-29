@@ -1,6 +1,6 @@
 module github.com/Mundo-Dolphins/dolphins-alerts
 
-go 1.26.0
+go 1.27.3
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20250909204019-c5eaa30f683f
