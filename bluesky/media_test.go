@@ -96,11 +96,24 @@ func TestFitImage_UndecodableOversizedIsAnError(t *testing.T) {
 	}
 }
 
+// testDidDoc is what createSession returns for an account hosted on a PDS
+// other than the bsky.social entryway.
+var testDidDoc = func() *interface{} {
+	var doc interface{} = map[string]any{
+		"id": "did:plc:me",
+		"service": []any{map[string]any{
+			"id": "#atproto_pds", "type": "AtprotoPersonalDataServer",
+			"serviceEndpoint": "https://blusher.us-east.host.bsky.network",
+		}},
+	}
+	return &doc
+}()
+
 func stubSession(t *testing.T) {
 	t.Helper()
 	old := serverCreateSession
 	serverCreateSession = func(context.Context, util.LexClient, *atproto.ServerCreateSession_Input) (*atproto.ServerCreateSession_Output, error) {
-		return &atproto.ServerCreateSession_Output{AccessJwt: "a", RefreshJwt: "r", Handle: "h", Did: "did:plc:me"}, nil
+		return &atproto.ServerCreateSession_Output{AccessJwt: "a", RefreshJwt: "r", Handle: "h", Did: "did:plc:me", DidDoc: testDidDoc}, nil
 	}
 	t.Cleanup(func() { serverCreateSession = old })
 	oldPosted := postedHashesFile
@@ -161,7 +174,7 @@ func fakeVideoServices(t *testing.T, finalState string) (videoURL string, polls 
 	oldURL, oldAuth, oldPoll := videoServiceURL, serverGetServiceAuth, videoPollInterval
 	videoServiceURL, videoPollInterval = srv.URL, time.Millisecond
 	serverGetServiceAuth = func(_ context.Context, _ util.LexClient, aud string, exp int64, lxm string) (*atproto.ServerGetServiceAuth_Output, error) {
-		if aud != "did:web:bsky.social" || lxm != "com.atproto.repo.uploadBlob" || exp <= time.Now().Unix() {
+		if aud != "did:web:blusher.us-east.host.bsky.network" || lxm != "com.atproto.repo.uploadBlob" || exp <= time.Now().Unix() {
 			t.Errorf("bad service auth request aud=%q lxm=%q exp=%d", aud, lxm, exp)
 		}
 		return &atproto.ServerGetServiceAuth_Output{Token: "svc-token"}, nil
@@ -252,5 +265,16 @@ func TestParseJobStatus_AcceptsFlatAndWrappedShapes(t *testing.T) {
 	}
 	if _, err := parseJobStatus([]byte(`{"error":"Unauthorized"}`)); err == nil {
 		t.Error("a response without a job id must be an error")
+	}
+}
+
+func TestPDSHost(t *testing.T) {
+	if got := pdsHost(testDidDoc, "https://bsky.social"); got != "blusher.us-east.host.bsky.network" {
+		t.Errorf("from DID doc: %q", got)
+	}
+	for name, doc := range map[string]*interface{}{"nil": nil, "garbage": func() *interface{} { var d interface{} = "x"; return &d }()} {
+		if got := pdsHost(doc, "https://bsky.social"); got != "bsky.social" {
+			t.Errorf("%s: fallback = %q", name, got)
+		}
 	}
 }

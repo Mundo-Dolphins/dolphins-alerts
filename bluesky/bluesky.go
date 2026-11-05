@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -126,6 +127,9 @@ func isHashPosted(hash string) bool {
 }
 
 func savePostedHash(hash string) {
+	if dir := filepath.Dir(postedHashesFile); dir != "." {
+		_ = os.MkdirAll(dir, 0755)
+	}
 	f, err := os.OpenFile(postedHashesFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err == nil {
 		_, _ = f.WriteString(hash + "\n")
@@ -161,6 +165,15 @@ func PostToBluesky(ctx context.Context, text string, images, videos []string) er
 		Handle:     sess.Handle,
 		Did:        sess.Did,
 	}
+	// The same post may already be on the account (e.g. cross-posted from X by
+	// another tool, usually with its video); don't publish a lesser copy.
+	if uri, found, err := findDuplicate(ctx, client, sess.Did, fullText); err != nil {
+		logDuplicateLookupError(err)
+	} else if found {
+		log.Printf("Post already on Bluesky as %s, skipping duplicate", uri)
+		savePostedHash(hash)
+		return nil
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	var embed *appbsky.FeedPost_Embed
@@ -168,7 +181,7 @@ func PostToBluesky(ctx context.Context, text string, images, videos []string) er
 	// images. If the video cannot be mirrored, fall back to the images.
 	if len(videos) > 0 {
 		log.Printf("Uploading video: %s", videos[0])
-		if blob, err := uploadVideo(ctx, client, sess.Did, videos[0]); err != nil {
+		if blob, err := uploadVideo(ctx, client, sess.Did, sess.DidDoc, videos[0]); err != nil {
 			log.Printf("Skipping video %s: %v", videos[0], err)
 		} else {
 			alt := "Attached video"
