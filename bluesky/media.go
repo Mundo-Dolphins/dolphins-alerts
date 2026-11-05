@@ -182,21 +182,48 @@ func truncateBody(b []byte) string {
 	return string(b)
 }
 
+// pdsHost returns the host of the PDS that stores the account, which is the
+// audience the video service expects. It is read from the DID document returned
+// by createSession because accounts live on hosts such as
+// *.host.bsky.network, not on the bsky.social entryway. Without a usable DID
+// document it falls back to fallbackURL's host.
+func pdsHost(didDoc *interface{}, fallbackURL string) string {
+	if didDoc != nil {
+		if doc, ok := (*didDoc).(map[string]any); ok {
+			services, _ := doc["service"].([]any)
+			for _, svc := range services {
+				m, _ := svc.(map[string]any)
+				if m == nil || m["id"] != "#atproto_pds" {
+					continue
+				}
+				endpoint, _ := m["serviceEndpoint"].(string)
+				if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
+					return u.Host
+				}
+			}
+		}
+	}
+	if u, err := url.Parse(fallbackURL); err == nil {
+		return u.Host
+	}
+	return ""
+}
+
 // uploadVideo sends a video to the Bluesky video service and waits for its
 // processing job to produce the blob to embed. Flow documented in
 // https://docs.bsky.app/docs/tutorials/video
-func uploadVideo(ctx context.Context, client *xrpc.Client, did, videoURL string) (*util.LexBlob, error) {
+func uploadVideo(ctx context.Context, client *xrpc.Client, did string, didDoc *interface{}, videoURL string) (*util.LexBlob, error) {
 	file, size, err := downloadVideo(ctx, videoURL)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = file.Close(); _ = os.Remove(file.Name()) }()
 
-	host, err := url.Parse(client.Host)
-	if err != nil || host.Host == "" {
+	host := pdsHost(didDoc, client.Host)
+	if host == "" {
 		return nil, fmt.Errorf("invalid PDS host %q", client.Host)
 	}
-	auth, err := serverGetServiceAuth(ctx, client, "did:web:"+host.Host, time.Now().Add(30*time.Minute).Unix(), "com.atproto.repo.uploadBlob")
+	auth, err := serverGetServiceAuth(ctx, client, "did:web:"+host, time.Now().Add(30*time.Minute).Unix(), "com.atproto.repo.uploadBlob")
 	if err != nil {
 		return nil, fmt.Errorf("service auth: %w", err)
 	}
